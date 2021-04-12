@@ -18,6 +18,7 @@ from collections import defaultdict
 
 import arxiv
 
+
 def get_valid_filename(s):
     """
     Return the given string converted to a string that can be used for a clean
@@ -36,21 +37,21 @@ def get_valid_filename(s):
     s = str(s).strip().replace(' ', '_')
     return re.sub(r'(?u)[^-\w.]', '', s)
 
+
 p = re.compile("^[0-9]{4}\.[0-9]{5}")
 pdfs = pathlib.Path('.').rglob('*.pdf')
 
 ids = []
 ids_name_map = defaultdict(list)
-duplicates = []
+has_duplicates = defaultdict(bool)
+duplicate_data = defaultdict(list)
 
 for n in pdfs:
     id_ = p.match(n.name)
-    is_dupe = False
     if id_:
         the_id = id_[0]
         if len(ids_name_map[the_id]) > 0:
-            is_dupe = True
-            duplicates.append(the_id)
+            has_duplicates[the_id] = True
             print(f'Detected duplicates for id {the_id}')
         else:
             ids.append(the_id)
@@ -70,21 +71,24 @@ for base, entry in zip(ids, entries):
     new_name = get_valid_filename(entry['title'])
     paths = ids_name_map[base]
 
+    # OK because the list should only contain each id once
+    if has_duplicates[base]:
+        duplicate_data[base] = []
+
     for path in paths:
-        path.rename(
-            os.path.join(path.parent, f'{base}_{new_name}.pdf')
-        )
+        target = os.path.join(path.parent, f'{base}_{new_name}.pdf')
+        path.rename(target)
+        if has_duplicates[base]:
+            duplicate_data[base].append(target)
 print('Done')
 
 print('\n********\n')
 
 print('The following duplicate ids were found:')
-if len(duplicates) == 0:
+if len(duplicate_data.keys()) == 0:
     print('None.')
 else:
-    for dup_id in duplicates:
+    for dup_id, paths in duplicate_data.items():
         print(f'{dup_id}:')
-        for path in ids_name_map[dup_id]:
-            print(
-                os.path.join(path.parent, f'{base}_{new_name}.pdf')
-            )
+        for path in paths:
+            print(path)
